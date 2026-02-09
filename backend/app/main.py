@@ -4,9 +4,8 @@ Intuiserve Sangati - Main Application Entry Point
 Offline-first anticipatory operations intelligence for restaurants.
 """
 
-import asyncio
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -18,7 +17,8 @@ from app.database import init_db, async_session_factory
 from app.api.routes import router
 from app.core.zone_manager import seed_zones
 from app.core.audit_service import log_event
-from app.services.pipeline import run_background_tick
+from app.services.ws_manager import ws_manager
+from app.services.pipeline import run_expiry_tick
 
 scheduler = AsyncIOScheduler()
 
@@ -26,32 +26,29 @@ scheduler = AsyncIOScheduler()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown lifecycle."""
-    # --- Startup ---
     await init_db()
 
-    # Seed default zones
     async with async_session_factory() as db:
         await seed_zones(db)
         await log_event(
             db,
             event_type="system_start",
-            summary=f"Sangati system started (demo_mode={settings.DEMO_MODE})",
+            summary="Sangati system started",
             actor="system",
         )
 
-    # Start background pipeline scheduler
+    # Periodic nudge/signal expiry only - no fake data generation
     scheduler.add_job(
-        run_background_tick,
+        run_expiry_tick,
         "interval",
-        seconds=settings.SIGNAL_TICK_INTERVAL,
-        id="pipeline_tick",
+        seconds=30,
+        id="expiry_tick",
         replace_existing=True,
     )
     scheduler.start()
 
     yield
 
-    # --- Shutdown ---
     scheduler.shutdown(wait=False)
     async with async_session_factory() as db:
         await log_event(
@@ -81,6 +78,20 @@ app.add_middleware(
 
 # API routes under /api
 app.include_router(router, prefix="/api")
+
+
+# WebSocket endpoint
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await ws_manager.connect(websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            if data == "ping":
+                await websocket.send_text("pong")
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket)
+
 
 # Serve frontend static files - check both dev and Docker locations
 frontend_dist = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"

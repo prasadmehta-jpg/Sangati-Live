@@ -5,7 +5,6 @@ from typing import Optional
 from datetime import datetime
 
 
-# --- Zone schemas ---
 class ZoneOut(BaseModel):
     id: int
     name: str
@@ -40,7 +39,6 @@ class ZonePressureSummary(BaseModel):
     zones_by_status: dict
 
 
-# --- Signal schemas ---
 class SignalOut(BaseModel):
     id: int
     zone_id: int
@@ -55,7 +53,6 @@ class SignalOut(BaseModel):
         from_attributes = True
 
 
-# --- Decision schemas ---
 class DecisionOut(BaseModel):
     id: int
     signal_ids: Optional[list] = None
@@ -73,7 +70,6 @@ class DecisionOut(BaseModel):
         from_attributes = True
 
 
-# --- Nudge schemas ---
 class NudgeOut(BaseModel):
     id: int
     decision_id: int
@@ -94,11 +90,10 @@ class NudgeOut(BaseModel):
 
 
 class NudgeAction(BaseModel):
-    action: str  # "acknowledge" or "dismiss"
+    action: str
     actor: Optional[str] = "staff"
 
 
-# --- Audit schemas ---
 class AuditLogOut(BaseModel):
     id: int
     event_type: str
@@ -115,30 +110,16 @@ class AuditLogOut(BaseModel):
         from_attributes = True
 
 
-# --- Demo schemas ---
-class ScenarioSelect(BaseModel):
-    scenario: str  # "quiet", "steady", "rush", "wind_down"
-
-
-class DemoModeToggle(BaseModel):
-    enabled: bool
-
-
-# --- Pipeline schemas ---
 class PipelineResult(BaseModel):
-    demo_changes: Optional[dict] = None
     signals_generated: int
     decisions_made: int
     nudges_created: int
     nudges_expired: Optional[int] = None
 
 
-# --- Dashboard schemas ---
 class DashboardState(BaseModel):
     zones: list[ZoneOut]
     active_nudges: list[NudgeOut]
     recent_signals: list[SignalOut]
     recent_decisions: list[DecisionOut]
     pressure_summary: ZonePressureSummary
-    demo_mode: bool
-    current_scenario: Optional[dict] = None

@@ -1,14 +1,8 @@
-"""Basic tests for core engines."""
+"""Tests for core engines."""
 
-import asyncio
 import pytest
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from app.database import Base
-from app.models.zone import Zone
-from app.models.signal import Signal
-from app.models.decision import Decision
-from app.models.nudge import Nudge
-from app.models.audit import AuditLog
 from app.core import zone_manager, signal_engine, decision_engine, nudge_generator, audit_service
 
 
@@ -54,9 +48,8 @@ async def test_signal_generation(db):
     zones = await zone_manager.seed_zones(db)
     entrance = next(z for z in zones if z.zone_type == "entrance")
     await zone_manager.update_zone_occupancy(db, entrance.id, 10)
-    signals = await signal_engine.evaluate_zone_signals(db, entrance, is_demo=True)
+    signals = await signal_engine.evaluate_zone_signals(db, entrance, is_demo=False)
     assert len(signals) > 0
-    assert all(s.is_demo for s in signals)
 
 
 @pytest.mark.asyncio
@@ -64,7 +57,7 @@ async def test_decision_from_signal(db):
     zones = await zone_manager.seed_zones(db)
     entrance = next(z for z in zones if z.zone_type == "entrance")
     await zone_manager.update_zone_occupancy(db, entrance.id, 10)
-    signals = await signal_engine.evaluate_zone_signals(db, entrance, is_demo=True)
+    signals = await signal_engine.evaluate_zone_signals(db, entrance, is_demo=False)
     decisions = await decision_engine.evaluate_signals(db, signals)
     assert len(decisions) > 0
     assert all(d.explanation for d in decisions)
@@ -75,7 +68,7 @@ async def test_nudge_generation(db):
     zones = await zone_manager.seed_zones(db)
     entrance = next(z for z in zones if z.zone_type == "entrance")
     await zone_manager.update_zone_occupancy(db, entrance.id, 10)
-    signals = await signal_engine.evaluate_zone_signals(db, entrance, is_demo=True)
+    signals = await signal_engine.evaluate_zone_signals(db, entrance, is_demo=False)
     decisions = await decision_engine.evaluate_signals(db, signals)
     nudges = await nudge_generator.generate_nudges(db, decisions)
     assert len(nudges) > 0

@@ -5,9 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.api import schemas
 from app.core import zone_manager, signal_engine, decision_engine, nudge_generator, audit_service
-from app.demo import simulator
-from app.services import pipeline
-from app.config import settings
+from app.services.pipeline import run_pipeline
+from app.services.ws_manager import ws_manager
 from typing import Optional
 
 router = APIRouter()
@@ -24,18 +23,12 @@ async def get_dashboard(db: AsyncSession = Depends(get_db)):
     recent_decisions = await decision_engine.get_recent_decisions(db, limit=20)
     pressure = await zone_manager.get_zone_pressure_summary(db)
 
-    current_scenario = None
-    if settings.DEMO_MODE:
-        current_scenario = simulator.get_current_scenario()
-
     return schemas.DashboardState(
         zones=[schemas.ZoneOut.model_validate(z) for z in zones],
         active_nudges=[schemas.NudgeOut.model_validate(n) for n in active_nudges],
         recent_signals=[schemas.SignalOut.model_validate(s) for s in recent_signals],
         recent_decisions=[schemas.DecisionOut.model_validate(d) for d in recent_decisions],
         pressure_summary=schemas.ZonePressureSummary(**pressure),
-        demo_mode=settings.DEMO_MODE,
-        current_scenario=current_scenario,
     )
 
 
@@ -64,6 +57,16 @@ async def update_zone(zone_id: int, data: schemas.ZoneUpdate, db: AsyncSession =
         zone = await zone_manager.update_zone_status(db, zone_id, data.status)
     if not zone:
         raise HTTPException(status_code=404, detail="Zone not found")
+
+    # Trigger pipeline after zone change
+    pipeline_result = await run_pipeline(db)
+
+    # Broadcast update to all WS clients
+    await ws_manager.broadcast("zone_updated", {
+        "zone": schemas.ZoneOut.model_validate(zone).model_dump(mode="json"),
+        "pipeline": pipeline_result,
+    })
+
     return schemas.ZoneOut.model_validate(zone)
 
 
@@ -137,8 +140,13 @@ async def nudge_action(nudge_id: int, data: schemas.NudgeAction, db: AsyncSessio
         entity_id=nudge_id,
         actor=data.actor or "staff",
         summary=f"Nudge {nudge_id} {data.action}d by {data.actor or 'staff'}",
-        is_demo=nudge.is_demo,
     )
+
+    # Broadcast nudge action
+    await ws_manager.broadcast("nudge_action", {
+        "nudge_id": nudge_id,
+        "action": data.action,
+    })
 
     return schemas.NudgeOut.model_validate(nudge)
 
@@ -164,55 +172,12 @@ async def get_nudge_trace(nudge_id: int, db: AsyncSession = Depends(get_db)):
     return [schemas.AuditLogOut.model_validate(e) for e in entries]
 
 
-# ==================== Demo Controls ====================
+# ==================== Pipeline ====================
 
-@router.get("/demo/status")
-async def demo_status():
-    return {
-        "demo_mode": settings.DEMO_MODE,
-        "scenario": simulator.get_current_scenario(),
-        "available_scenarios": list(simulator.SCENARIOS.keys()),
-    }
-
-
-@router.post("/demo/scenario")
-async def set_scenario(data: schemas.ScenarioSelect):
-    try:
-        return simulator.set_scenario(data.scenario)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-@router.post("/demo/toggle", response_model=dict)
-async def toggle_demo(data: schemas.DemoModeToggle, db: AsyncSession = Depends(get_db)):
-    settings.DEMO_MODE = data.enabled
-    await audit_service.log_event(
-        db,
-        event_type="demo_mode_toggled",
-        summary=f"Demo mode {'enabled' if data.enabled else 'disabled'}",
-        actor="user",
-        details={"demo_mode": data.enabled},
-    )
-    return {"demo_mode": settings.DEMO_MODE}
-
-
-@router.post("/demo/reset")
-async def reset_demo(db: AsyncSession = Depends(get_db)):
-    result = await simulator.reset_simulation(db)
-    await audit_service.log_event(
-        db,
-        event_type="simulation_reset",
-        summary="Simulation reset to initial state",
-        actor="user",
-        is_demo=True,
-    )
-    return result
-
-
-@router.post("/demo/tick", response_model=schemas.PipelineResult)
+@router.post("/pipeline/tick", response_model=schemas.PipelineResult)
 async def manual_tick(db: AsyncSession = Depends(get_db)):
-    """Manually trigger one pipeline tick (useful for debugging)."""
-    result = await pipeline.run_pipeline_tick(db, is_demo=settings.DEMO_MODE)
+    """Manually trigger one pipeline evaluation cycle."""
+    result = await run_pipeline(db)
     return schemas.PipelineResult(**result)
 
 
@@ -222,7 +187,6 @@ async def manual_tick(db: AsyncSession = Depends(get_db)):
 async def health_check():
     return {
         "status": "healthy",
-        "app": settings.APP_NAME,
-        "version": settings.APP_VERSION,
-        "demo_mode": settings.DEMO_MODE,
+        "app": "Intuiserve Sangati",
+        "version": "2.0.0",
     }
