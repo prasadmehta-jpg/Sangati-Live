@@ -1,0 +1,74 @@
+services:
+  api:
+    build: .
+    container_name: sangati_api
+    env_file: .env
+    command: ["bash","-lc","uvicorn app.main:app --host ${API_HOST:-0.0.0.0} --port ${API_PORT:-8080} --reload"]
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+      - redis
+      - qdrant
+      - posbridge
+    volumes:
+      - ./app:/app/app
+      - ./policy:/app/policy
+
+  worker:
+    build: .
+    container_name: sangati_worker
+    env_file: .env
+    command: ["bash","-lc","python -m app.worker.run"]
+    depends_on:
+      - db
+      - redis
+      - qdrant
+      - posbridge
+    volumes:
+      - ./app:/app/app
+      - ./policy:/app/policy
+
+  db:
+    image: postgres:16
+    container_name: sangati_db
+    environment:
+      POSTGRES_USER: sangati
+      POSTGRES_PASSWORD: sangati
+      POSTGRES_DB: sangati
+    ports:
+      - "5432:5432"
+    volumes:
+      - sangati_pg:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    container_name: sangati_redis
+    ports:
+      - "6379:6379"
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: sangati_qdrant
+    ports:
+      - "6333:6333"
+    volumes:
+      - sangati_qdrant:/qdrant/storage
+
+  posbridge:
+    build:
+      context: .
+      dockerfile: Dockerfile.posbridge
+    container_name: sangati_posbridge
+    environment:
+      POSBRIDGE_TOKEN: ${POSBRIDGE_TOKEN:-posbridge-token-change-me}
+      POSBRIDGE_HOST: 0.0.0.0
+      POSBRIDGE_PORT: 8090
+    ports:
+      - "8090:8090"
+    volumes:
+      - ./posbridge:/app/posbridge
+
+volumes:
+  sangati_pg:
+  sangati_qdrant:

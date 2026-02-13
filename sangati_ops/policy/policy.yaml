@@ -1,0 +1,33 @@
+version: 1
+mode: recommend_only  # recommend_only | semi_automation
+hard_rules:
+  - id: no_auto_void_refund
+    desc: LLM/agents must never void/refund/comp without explicit manager approval.
+    deny_actions:
+      - pos.void
+      - pos.refund
+      - pos.comp
+  - id: no_sensitive_identity
+    desc: Do not store biometric/PII in vector store.
+    deny_fields:
+      - face_embedding
+      - ssn
+      - passport
+      - exact_dob
+constraints:
+  max_actions_per_cycle: 5
+  max_risk_score: 0.35
+allowed_actions:
+  - ops.assign_runner
+  - ops.escalate_manager
+  - ops.pause_seating
+  - ops.batch_kitchen
+  - ops.prioritize_station
+  - ops.send_staff_message
+  - ops.create_task
+scoring:
+  weights:
+    speed: 0.40
+    quality: 0.25
+    labor: 0.20
+    margin: 0.15
