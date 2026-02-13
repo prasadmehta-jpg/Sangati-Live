@@ -1,0 +1,65 @@
+%% Sangati AI — Owner Autonomy Modes
+%% Mermaid state diagram: System behavior at each autonomy level
+
+stateDiagram-v2
+    [*] --> Advisor: Default during pilot onboarding
+
+    Advisor --> Notify: Owner enables push alerts
+    Notify --> Assist: Owner enables auto-assignment (post-pilot)
+    Assist --> Auto: Owner enables full automation (future)
+
+    Auto --> Assist: Owner reduces autonomy
+    Assist --> Notify: Owner reduces autonomy
+    Notify --> Advisor: Owner reduces autonomy
+
+    state Advisor {
+        [*] --> DetectIssues
+        DetectIssues --> ShowOnDashboard: Issues detected
+        ShowOnDashboard --> WaitForPull: Manager pulls info when ready
+        note right of ShowOnDashboard
+            NO push alerts
+            Manager must check dashboard
+            Lowest friction, lowest value
+            Use case: "Show me it works first"
+        end note
+    }
+
+    state Notify {
+        [*] --> DetectAndAlert
+        DetectAndAlert --> PushToStaff: Alert generated
+        PushToStaff --> WaitForAck: Staff receives push notification
+        WaitForAck --> Escalate: No ACK within timeout
+        WaitForAck --> Resolved: Staff ACKs and handles
+        note right of PushToStaff
+            Push alerts active
+            Role-based routing
+            Escalation ladder active
+            DEFAULT MVP MODE
+        end note
+    }
+
+    state Assist {
+        [*] --> DetectAlertAssign
+        DetectAlertAssign --> AutoAssign: Find nearest available server
+        AutoAssign --> PushAssignment: "You are assigned to Table 7"
+        PushAssignment --> TrackCompletion: Monitor staff response
+        note right of AutoAssign
+            Auto-assigns to nearest staff
+            Manager can override assignments
+            Requires accurate zone presence data
+            POST-PILOT (needs trust + data)
+        end note
+    }
+
+    state Auto {
+        [*] --> FullAutomation
+        FullAutomation --> AutoRoute: All routing automated
+        AutoRoute --> AutoEscalate: No human in loop for routine alerts
+        AutoEscalate --> ManagerExceptions: Manager only for exceptions
+        note right of FullAutomation
+            FUTURE (Month 6+)
+            Requires months of accuracy data
+            Manager intervenes on exceptions only
+            Highest value, highest risk
+        end note
+    }

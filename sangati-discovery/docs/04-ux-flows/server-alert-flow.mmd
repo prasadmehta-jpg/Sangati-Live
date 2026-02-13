@@ -1,0 +1,45 @@
+%% Sangati AI — Server Alert Flow
+%% Mermaid sequence diagram: How a floor server receives and acts on alerts
+
+sequenceDiagram
+    participant V as Vision Pipeline
+    participant R as Rules Engine
+    participant RT as Alert Router
+    participant P as Server Phone
+    participant SRV as Floor Server
+
+    Note over V,SRV: Zone A - Table idle 8+ min
+
+    V->>R: Zone A state = IDLE, duration = 490s
+    R->>R: rule_idle_table matches<br/>Check cooldown: OK<br/>Check dedup: OK<br/>Check fatigue: OK
+    R->>RT: Alert generated:<br/>"Zone A: idle 8m, needs check"
+    RT->>RT: Lookup zone_01 → assigned server
+    RT->>P: WebSocket push to Server #35;1 device
+
+    P->>SRV: 📳 Vibrate + chime<br/>Notification: "Zone A: idle 8m"
+
+    alt Server taps ACK
+        SRV->>P: Taps [ACK]
+        P->>RT: ack action
+        RT->>R: Cancel escalation timer
+        Note over SRV: Server walks to Zone A
+        SRV->>P: Taps [DONE] after attending table
+        P->>RT: resolved action
+        RT->>R: Clear dedup key
+    else Server taps SNOOZE
+        SRV->>P: Taps [SNOOZE 5m]
+        P->>RT: snooze action
+        RT->>R: Pause escalation 5 min
+        Note over R: After 5 min, if zone still IDLE:
+        R->>RT: Alert re-fires
+        RT->>P: Push again to server
+    else Server taps OVERRIDE
+        SRV->>P: Taps [NOT VALID]
+        P->>RT: override action
+        RT->>R: Suppress zone 10 min<br/>Log as false positive
+    else No response (90 seconds)
+        Note over R: Escalation timer fires
+        R->>RT: Escalate to Captain
+        RT->>RT: Lookup captain for Zone A section
+        RT->>P: Push to Captain device<br/>"⬆ Zone A: idle 10m — server no response"
+    end

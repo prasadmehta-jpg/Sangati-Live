@@ -1,0 +1,52 @@
+%% Sangati AI — Escalation & Overload Flow
+%% Mermaid sequence diagram: Full escalation path from initial alert to broadcast
+
+sequenceDiagram
+    participant R as Rules Engine
+    participant S1 as Server (Tier 1)
+    participant S2 as Captain (Tier 2)
+    participant S3 as Manager (Tier 3)
+    participant BC as Broadcast (Tier 4)
+    participant LOG as Event Log
+
+    Note over R,LOG: Alert: "Zone B dirty 5 min"
+
+    R->>S1: Push alert to zone server<br/>Severity: HIGH<br/>Timer: 90s
+    R->>LOG: alert_created {tier:1, recipient:server}
+
+    Note over S1: ⏱ 90 seconds pass — no response
+
+    R->>R: Escalation timer fires
+    R->>S2: Push to captain<br/>"⬆ Zone B dirty 5 min<br/>Server did not respond (90s)"
+    R->>LOG: alert_escalated {tier:2, recipient:captain}
+
+    Note over S2: ⏱ 120 seconds pass — no response
+
+    R->>R: Escalation timer fires
+    R->>S3: Push to manager<br/>"⬆⬆ Zone B dirty 7 min<br/>Server + Captain no response"
+    R->>LOG: alert_escalated {tier:3, recipient:manager}
+
+    alt Manager acknowledges
+        S3->>R: ACK
+        R->>LOG: alert_ack {tier:3, by:manager}
+        Note over R: Escalation chain stopped
+    else Manager does not respond (180s)
+        R->>R: Final escalation timer fires
+        R->>BC: 🔴 BROADCAST to ALL devices<br/>"UNATTENDED: Zone B dirty 10+ min<br/>No response from any staff"
+        R->>LOG: alert_broadcast {tier:4}
+    end
+
+    Note over R,LOG: Simultaneous Overload Scenario
+
+    rect rgb(255, 240, 240)
+        Note over R: Multiple zones degrading simultaneously
+        R->>S3: "Zone A: idle 10 min" (escalated)
+        R->>S3: "Zone B: dirty 6 min" (escalated)
+        R->>S3: "Entry: queue 8 min" (escalated)
+        R->>R: Fatigue check: manager at 3/5 limit
+
+        Note over S3: Manager overwhelmed
+        S3->>R: Switches to QUIET mode
+        R->>R: Suppress non-critical alerts
+        R->>LOG: mode_change {from:FULL, to:QUIET}
+    end
