@@ -1,0 +1,9 @@
+# OpenClaw development clone
+openclaw/
+
+# Node
+node_modules/
+
+# OS files
+.DS_Store
+Thumbs.db
