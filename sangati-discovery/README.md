@@ -22,40 +22,40 @@ npm run demo    # Simulates 10 minutes of dinner rush — prints alerts to termi
 | Path | Purpose |
 |---|---|
 | **docs/01-vision/** | |
-| `product-vision.md` | North star: pilot wedge, not-doing list, success metrics, constraints, differentiation |
-| `pilot-workflows.md` | Rush-hour coordination, ACK/snooze/escalate, manager override, escalation ladder |
+| `docs/01-vision/product-vision.md` | North star: pilot wedge, not-doing list, success metrics, constraints, differentiation |
+| `docs/01-vision/pilot-workflows.md` | Rush-hour coordination, ACK/snooze/escalate, manager override, escalation ladder |
 | **docs/02-requirements/** | |
-| `mvp-scope.md` | In-scope features, out-of-scope exclusions, user stories, acceptance criteria |
-| `tech-requirements.md` | Edge hardware, CCTV specs, network infra, staff device specs, cloud, security |
+| `docs/02-requirements/mvp-scope.md` | In-scope features, out-of-scope exclusions, user stories, acceptance criteria |
+| `docs/02-requirements/tech-requirements.md` | Edge hardware, CCTV specs, network infra, staff device specs, cloud, security |
 | **docs/03-architecture/** | |
-| `system-design.md` | 6-layer architecture, three-layer intelligence, data model (SQLite schema), offline-first sync |
-| `integrations.md` | CCTV/RTSP access modes, POS (optional), QR hooks, WhatsApp API, reservation systems |
+| `docs/03-architecture/system-design.md` | 6-layer architecture, three-layer intelligence, data model (SQLite schema), offline-first sync |
+| `docs/03-architecture/integrations.md` | CCTV/RTSP access modes, POS (optional), QR hooks, WhatsApp API, reservation systems |
 | **docs/04-ux-flows/** | |
-| `manager-rush-dashboard.mmd` | Mermaid: manager dashboard interactions during rush |
-| `server-alert-flow.mmd` | Mermaid: server receives alert → ACK/snooze/override/escalate |
-| `override-broadcast.mmd` | Mermaid: override logic + broadcast alert path |
-| `escalation-overload.mmd` | Mermaid: full 4-tier escalation + overload scenario |
-| `owner-autonomy-modes.mmd` | Mermaid: Advisor → Notify → Assist → Auto mode progression |
+| `docs/04-ux-flows/manager-rush-dashboard.mmd` | Mermaid: manager dashboard interactions during rush |
+| `docs/04-ux-flows/server-alert-flow.mmd` | Mermaid: server receives alert → ACK/snooze/override/escalate |
+| `docs/04-ux-flows/override-broadcast.mmd` | Mermaid: override logic + broadcast alert path |
+| `docs/04-ux-flows/escalation-overload.mmd` | Mermaid: full 4-tier escalation + overload scenario |
+| `docs/04-ux-flows/owner-autonomy-modes.mmd` | Mermaid: Advisor → Notify → Assist → Auto mode progression |
 | **docs/05-execution/** | |
-| `deployment-plan.md` | Pre-deployment checklist, install-day timeline, calibration, evaluation, decommission |
-| `pilot-roadmap.md` | 20-week roadmap, dependencies, decision gates, budget estimate |
-| `risks-mitigations.md` | 10 risks with probability/impact, mitigations, heat map |
+| `docs/05-execution/deployment-plan.md` | Pre-deployment checklist, install-day timeline, calibration, evaluation, decommission |
+| `docs/05-execution/pilot-roadmap.md` | 20-week roadmap, dependencies, decision gates, budget estimate |
+| `docs/05-execution/risks-mitigations.md` | 10 risks with probability/impact, mitigations, heat map |
 | **research/** | |
-| `user-personas/manager.md` | Floor manager: goals, pains, authority, adoption killers |
-| `user-personas/floor-server.md` | Server/waiter: goals, pains, tech comfort, adoption killers |
-| `user-personas/kitchen.md` | Kitchen staff: goals, interaction model (no phone), KDS approach |
-| `user-personas/owner-admin.md` | Owner: ROI focus, autonomy modes, morning report, analytics |
-| `competitive-analysis.md` | Wobot, 5thru, Presto, Tablo, CrunchTime + differentiation matrix |
+| `research/user-personas/manager.md` | Floor manager: goals, pains, authority, adoption killers |
+| `research/user-personas/floor-server.md` | Floor server: goals, pains, tech comfort, adoption killers |
+| `research/user-personas/kitchen.md` | Kitchen staff: goals, interaction model (no phone), KDS approach |
+| `research/user-personas/owner-admin.md` | Owner: ROI focus, autonomy modes, morning report, analytics |
+| `research/competitive-analysis.md` | Wobot, 5thru, Presto, Tablo, CrunchTime + differentiation matrix |
 | **prototypes/alert-taxonomy/** | |
-| `taxonomy.schema.json` | JSON Schema for alert definitions |
-| `taxonomy.sample.json` | 18 alert definitions across floor, kitchen, manager, system categories |
+| `prototypes/alert-taxonomy/taxonomy.schema.json` | JSON Schema for alert definitions |
+| `prototypes/alert-taxonomy/taxonomy.sample.json` | 18 alert definitions across floor, kitchen, manager, system categories |
 | **prototypes/rules-engine/** | |
-| `src/engine.ts` | Core rules engine: evaluate, suppress, escalate |
-| `src/rules.ts` | 6 default rules with conditions and suppression config |
-| `src/taxonomy.ts` | TypeScript types for zones, states, alerts |
-| `src/demo.ts` | 10-minute rush simulation (runnable) |
-| `test/engine.test.ts` | Unit tests (15+ test cases) |
-| `README.md` | Rules engine quick-start and API docs |
+| `prototypes/rules-engine/src/engine.ts` | Core rules engine: evaluate, suppress, escalate |
+| `prototypes/rules-engine/src/rules.ts` | 6 default rules with conditions and suppression config |
+| `prototypes/rules-engine/src/taxonomy.ts` | TypeScript types for zones, states, alerts |
+| `prototypes/rules-engine/src/demo.ts` | 10-minute rush simulation (runnable) |
+| `prototypes/rules-engine/test/engine.test.ts` | Unit tests (15+ test cases) |
+| `prototypes/rules-engine/README.md` | Rules engine quick-start and API docs |
 
 ---
 

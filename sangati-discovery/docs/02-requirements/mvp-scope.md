@@ -167,7 +167,7 @@ The MVP pilot is considered successful when:
 4. False positive rate ≤20% (validated by 1-hour manual audit per day for 1 week)
 5. Table-turn time shows measurable improvement (any positive delta vs. baseline)
 6. Manager confirms: "I would continue using this" (qualitative interview)
-7. No privacy incidents or staff complaints about surveillance
+7. No privacy incidents or staff complaints about being watched or tracked
 
 ---
 

@@ -8,7 +8,7 @@
 
 | Attribute | Value |
 |---|---|
-| **Role** | Floor Server / Waiter |
+| **Role** | Floor Server |
 | **Age range** | 18–30 |
 | **Experience** | 0–5 years (high turnover) |
 | **Reports to** | Captain → Floor Manager |
@@ -69,7 +69,7 @@
 
 ## What They Ignore
 
-- Anything that looks like a "management tool" — they assume it's surveillance
+- Anything that looks like a "management tool" — they assume it tracks them
 - Alerts about zones that aren't theirs
 - Any notification longer than ~8 words
 - Post-shift feedback or reports — they want to leave
@@ -79,7 +79,7 @@
 
 ## What Would Make Them Uninstall (Adoption Killers)
 
-1. **Feels like surveillance.** "They're tracking how fast I respond" → immediate rejection.
+1. **Feels like being tracked.** "They're tracking how fast I respond" → immediate rejection.
 2. **Too many alerts.** If they get pinged every 2 minutes, they'll silence the app.
 3. **Requires their personal phone + data.** If Sangati drains battery or uses mobile data (no WiFi), they won't tolerate it.
 4. **Manager weaponizes it.** If alert response times are used for punishment, staff will game the system or quit.
@@ -111,5 +111,5 @@
 
 1. **Phone policy:** Do pilot restaurants allow phones on the floor? If not, alternative: wrist device? Dedicated cheap Android device?
 2. **Language:** Hindi-first alerts or English-first? Can we detect phone language and auto-switch?
-3. **Incentive model:** Should good alert-response times earn server recognition? Or is gamification risky (surveillance perception)?
+3. **Incentive model:** Should good alert-response times earn server recognition? Or is gamification risky (staff-tracking perception)?
 4. **Data usage:** Will the app work on LAN-only (no mobile data cost to server)?

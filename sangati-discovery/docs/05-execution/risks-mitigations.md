@@ -44,7 +44,7 @@
 | **Category** | Adoption / behavioral |
 | **Probability** | High (50%) |
 | **Impact** | Critical — no adoption = no pilot data = no product |
-| **Description** | Floor staff may refuse to install app, ignore alerts, or actively sabotage (silence phone, don't carry phone). Reasons: surveillance fear, phone battery concerns, extra work perception, peer pressure against adoption. |
+| **Description** | Floor staff may refuse to install app, ignore alerts, or actively sabotage (silence phone, don't carry phone). Reasons: privacy fear, phone battery concerns, extra work perception, peer pressure against adoption. |
 | **Indicators** | <50% daily active users after week 2; ack rate <30%; staff verbal complaints. |
 | **Mitigation** | 1. Manager champion drives adoption (not forced by owner/tech). 2. Frame as "helps YOU" not "monitors YOU." 3. No per-staff performance scoring in MVP. 4. Demonstrate value to 2–3 enthusiastic servers first (social proof). 5. Address battery + data concerns (LAN-only, minimal battery). 6. Consider dedicated cheap device if personal phone is rejected. |
 | **Owner** | Field-ops + manager |
@@ -74,9 +74,9 @@
 | **Category** | Legal / reputational |
 | **Probability** | Low (15%) |
 | **Impact** | Critical — one public complaint could kill the product |
-| **Description** | Staff or customers perceive Sangati as surveillance. Social media post, legal complaint, or media coverage. Despite no biometric data, the perception of "AI watching" is enough. |
+| **Description** | Staff or customers perceive Sangati as a staff-tracking tool. Social media post, legal complaint, or media coverage. Despite no biometric data, the perception of "AI watching" is enough. |
 | **Indicators** | Staff or customer complaints about cameras/AI; social media mentions; legal notice. |
-| **Mitigation** | 1. No biometric data, ever. No facial recognition. No identity tracking. 2. Privacy-by-design: raw frames never stored. 3. Signage in restaurant: "AI-assisted service optimization in use. No personal data collected." 4. Staff informed and consented during onboarding. 5. Owner briefed on privacy messaging. 6. DPDP Act 2023 compliance by default (no personal data collected). 7. Position as "service-pressure intelligence" not surveillance. |
+| **Mitigation** | 1. No biometric data, ever. No face-based identification. No individual tracking. 2. Privacy-by-design: raw frames never stored. 3. Signage in restaurant: "AI-assisted service optimization in use. No personal data collected." 4. Staff informed and consented during onboarding. 5. Owner briefed on privacy messaging. 6. DPDP Act 2023 compliance by default (no personal data collected). 7. Position as "service-pressure intelligence" not staff-tracking. |
 | **Owner** | Founder / legal |
 | **Contingency** | Immediate: disable system, issue statement. Long-term: privacy audit by third party. |
 

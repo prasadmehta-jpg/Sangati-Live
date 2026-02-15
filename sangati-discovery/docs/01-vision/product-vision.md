@@ -37,7 +37,7 @@ During peak service (lunch 12:00–14:00, dinner 19:00–22:00), the floor manag
 
 | Excluded | Reason |
 |---|---|
-| Facial recognition / staff ID | Privacy-first, patent-safe, not needed for pressure detection |
+| Biometric identification / staff ID | Privacy-first, patent-safe, not needed for pressure detection |
 | Automated ordering / POS write-back | Requires deep integration; MVP is read-only |
 | Kitchen cook-time prediction | Requires per-dish CV training; out of scope for pilot |
 | Customer sentiment / emotion detection | Biometric, unreliable, privacy risk |

@@ -83,7 +83,7 @@
 2. **Slows them down.** If acting on an alert takes >5 seconds (open app, read, understand, act), they'll ignore it.
 3. **Undermines their authority.** If staff get alerts that bypass the manager or make the manager look uninformed, they'll resist.
 4. **Crashes or freezes.** One freeze during a Saturday night rush = permanent distrust.
-5. **Owner surveillance.** If they perceive Sangati as the owner watching them (not helping them), they'll sabotage adoption.
+5. **Owner oversight fear.** If they perceive Sangati as the owner watching them (not helping them), they'll sabotage adoption.
 6. **Battery drain.** If the app kills their phone battery by 20:00, it's gone.
 
 ---
@@ -92,7 +92,7 @@
 
 > "Sangati is your extra pair of eyes. It sees the zones you can't, and tells the right person to act — so you can focus on the guests in front of you."
 
-**Key message:** This is YOUR tool, not the owner's surveillance. It makes YOU look good.
+**Key message:** This is YOUR tool, not the owner's tracking system. It makes YOU look good.
 
 ---
 

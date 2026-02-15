@@ -172,7 +172,7 @@ Sangati occupies a unique position: **vision-based + real-time push**. Most comp
 2. **Escalation ladder with auto-escalation** — no competitor has built-in operational escalation
 3. **Offline-first edge deployment** — critical for India's connectivity reality. Wobot and others require cloud.
 4. **Zero new hardware for restaurants** — uses what they already have (CCTV + phones)
-5. **Non-biometric by design** — not a surveillance tool, a service-pressure tool
+5. **Non-biometric by design** — not a staff-tracking tool, a service-pressure tool
 
 ### Competitive moat (potential, not proven):
 - **Data flywheel:** Every restaurant generates state-transition data that improves threshold calibration → better alerts → more adoption
