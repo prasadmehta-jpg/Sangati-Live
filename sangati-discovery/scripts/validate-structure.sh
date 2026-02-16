@@ -17,6 +17,7 @@ required_files=(
   "docs/02-requirements/tech-requirements.md"
   "docs/03-architecture/system-design.md"
   "docs/03-architecture/integrations.md"
+  "docs/03-architecture/platform-architecture.md"
   "docs/05-execution/deployment-plan.md"
   "docs/05-execution/pilot-roadmap.md"
   "docs/05-execution/risks-mitigations.md"

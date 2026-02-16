@@ -30,6 +30,7 @@ npm run demo    # Simulates 10 minutes of dinner rush — prints alerts to termi
 | **docs/03-architecture/** | |
 | `docs/03-architecture/system-design.md` | 6-layer architecture, three-layer intelligence, data model (SQLite schema), offline-first sync |
 | `docs/03-architecture/integrations.md` | CCTV/RTSP access modes, POS (optional), QR hooks, WhatsApp API, reservation systems |
+| `docs/03-architecture/platform-architecture.md` | Production implementation: DVR auto-discovery, POS adapter pattern, Go agent, mDNS + MQTT, deployment |
 | **docs/04-ux-flows/** | |
 | `docs/04-ux-flows/manager-rush-dashboard.mmd` | Mermaid: manager dashboard interactions during rush |
 | `docs/04-ux-flows/server-alert-flow.mmd` | Mermaid: server receives alert → ACK/snooze/override/escalate |
