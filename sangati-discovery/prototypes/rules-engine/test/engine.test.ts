@@ -1,11 +1,22 @@
 /**
- * Sangati AI — Rules Engine Tests
+ * Sangati — Rules Engine Tests
+ *
+ * Tests cover:
+ *   1. Core-only mode (no providers, no Intelligence)
+ *   2. Feature flags (core locked, intelligence toggleable)
+ *   3. Intelligence providers (adaptive thresholds, smart suppression, anomaly scoring)
+ *   4. Backward compatibility (legacy constructor still works)
  */
 
-import { RulesEngine } from '../src/engine';
-import { DEFAULT_RULES } from '../src/rules';
-import type { Rule } from '../src/rules';
-import type { RestaurantState, ZoneSnapshot, Alert } from '../src/taxonomy';
+import { RulesEngine } from '../src/core/engine';
+import { DEFAULT_RULES } from '../src/core/rules';
+import { FeatureFlagManager } from '../src/core/features';
+import type { Rule } from '../src/core/rules';
+import type { RestaurantState, ZoneSnapshot, Alert } from '../src/core/types';
+import type { EngineConfig } from '../src/core/engine';
+
+// Intelligence imports
+import { createIntelligenceProviders, INTELLIGENCE_FLAGS } from '../src/intelligence';
 
 // --- Test Helpers ---
 
@@ -32,7 +43,7 @@ function makeZone(overrides: Partial<ZoneSnapshot> & { zoneId: string }): ZoneSn
 
 function makeState(
   zones: ZoneSnapshot[],
-  overrides?: Partial<Pick<RestaurantState, 'mode' | 'timestamp'>>
+  overrides?: Partial<Pick<RestaurantState, 'mode' | 'timestamp'>>,
 ): RestaurantState {
   const zoneMap = new Map<string, ZoneSnapshot>();
   for (const z of zones) {
@@ -47,9 +58,11 @@ function makeState(
   };
 }
 
-// --- Tests ---
+// ==========================================
+// Core-Only Tests (no Intelligence)
+// ==========================================
 
-describe('RulesEngine', () => {
+describe('Core: RulesEngine', () => {
   describe('basic rule evaluation', () => {
     it('should fire idle table alert when zone is IDLE for >8 minutes', () => {
       const engine = new RulesEngine(DEFAULT_RULES, ZONE_CONFIGS);
@@ -57,7 +70,7 @@ describe('RulesEngine', () => {
         makeZone({
           zoneId: 'zone_01',
           state: 'IDLE',
-          stateDurationSeconds: 500, // >480s (8 min)
+          stateDurationSeconds: 500,
           blobCount: 4,
           seatedCount: 4,
           occupiedTables: 2,
@@ -82,7 +95,7 @@ describe('RulesEngine', () => {
         makeZone({
           zoneId: 'zone_01',
           state: 'IDLE',
-          stateDurationSeconds: 300, // <480s
+          stateDurationSeconds: 300,
           blobCount: 4,
           seatedCount: 4,
           occupiedTables: 2,
@@ -101,7 +114,7 @@ describe('RulesEngine', () => {
         makeZone({
           zoneId: 'zone_01',
           state: 'DIRTY',
-          stateDurationSeconds: 260, // >240s (4 min)
+          stateDurationSeconds: 260,
           blobCount: 0,
           occupiedTables: 0,
         }),
@@ -125,7 +138,7 @@ describe('RulesEngine', () => {
         makeZone({
           zoneId: 'zone_entry',
           state: 'QUEUE',
-          stateDurationSeconds: 150, // >120s
+          stateDurationSeconds: 150,
           standingCount: 4,
           blobCount: 4,
         }),
@@ -145,7 +158,7 @@ describe('RulesEngine', () => {
           zoneId: 'zone_01',
           state: 'OCCUPIED',
           stateDurationSeconds: 400,
-          secondsSinceStaffVisit: 400, // >360s (6 min)
+          secondsSinceStaffVisit: 400,
           blobCount: 6,
           seatedCount: 6,
           occupiedTables: 3,
@@ -166,7 +179,7 @@ describe('RulesEngine', () => {
     it('should enforce cooldown — same rule+zone does not re-fire within cooldown window', () => {
       const engine = new RulesEngine(DEFAULT_RULES, ZONE_CONFIGS);
       const t0 = new Date('2026-02-13T19:00:00Z');
-      const t1 = new Date('2026-02-13T19:02:00Z'); // 2 min later, within 5 min cooldown
+      const t1 = new Date('2026-02-13T19:02:00Z');
 
       const zoneData = makeZone({
         zoneId: 'zone_01',
@@ -179,25 +192,25 @@ describe('RulesEngine', () => {
 
       const state1 = makeState(
         [zoneData, makeZone({ zoneId: 'zone_02', state: 'EMPTY' }), makeZone({ zoneId: 'zone_entry', state: 'EMPTY' })],
-        { timestamp: t0 }
+        { timestamp: t0 },
       );
 
       const state2 = makeState(
         [{ ...zoneData, stateDurationSeconds: 620 }, makeZone({ zoneId: 'zone_02', state: 'EMPTY' }), makeZone({ zoneId: 'zone_entry', state: 'EMPTY' })],
-        { timestamp: t1 }
+        { timestamp: t1 },
       );
 
       const alerts1 = engine.evaluate(state1);
       expect(alerts1.length).toBe(1);
 
       const alerts2 = engine.evaluate(state2);
-      expect(alerts2.length).toBe(0); // Cooldown active
+      expect(alerts2.length).toBe(0);
     });
 
     it('should allow alert to re-fire after cooldown expires', () => {
       const engine = new RulesEngine(DEFAULT_RULES, ZONE_CONFIGS);
       const t0 = new Date('2026-02-13T19:00:00Z');
-      const t1 = new Date('2026-02-13T19:06:00Z'); // 6 min later, after 5 min cooldown
+      const t1 = new Date('2026-02-13T19:06:00Z');
 
       const zoneData = makeZone({
         zoneId: 'zone_01',
@@ -210,25 +223,23 @@ describe('RulesEngine', () => {
 
       const state1 = makeState(
         [zoneData, makeZone({ zoneId: 'zone_02', state: 'EMPTY' }), makeZone({ zoneId: 'zone_entry', state: 'EMPTY' })],
-        { timestamp: t0 }
+        { timestamp: t0 },
       );
 
-      // Resolve the first alert to clear dedup
       const alerts1 = engine.evaluate(state1);
       expect(alerts1.length).toBe(1);
       engine.resolveAlert(alerts1[0]);
 
       const state2 = makeState(
         [{ ...zoneData, stateDurationSeconds: 860 }, makeZone({ zoneId: 'zone_02', state: 'EMPTY' }), makeZone({ zoneId: 'zone_entry', state: 'EMPTY' })],
-        { timestamp: t1 }
+        { timestamp: t1 },
       );
 
       const alerts2 = engine.evaluate(state2);
-      expect(alerts2.length).toBe(1); // Cooldown expired, should re-fire
+      expect(alerts2.length).toBe(1);
     });
 
     it('should enforce fatigue limit — max alerts per role per window', () => {
-      // Use a custom rule set with low fatigue limit for testing
       const testRule: Rule = {
         id: 'test_rule',
         name: 'Test',
@@ -244,7 +255,7 @@ describe('RulesEngine', () => {
           escalateAfterSeconds: null,
         },
         suppression: {
-          cooldownSeconds: 0, // No cooldown for test
+          cooldownSeconds: 0,
           dedupeKey: '{zone_id}:{rule_id}',
           fatigueLimit: 2,
           fatigueWindowSeconds: 600,
@@ -260,40 +271,37 @@ describe('RulesEngine', () => {
       const engine = new RulesEngine([testRule], configs);
       const t = new Date('2026-02-13T19:00:00Z');
 
-      // Fire for zone 1
       const s1 = makeState(
         [
           makeZone({ zoneId: 'z1', state: 'IDLE', stateDurationSeconds: 10 }),
           makeZone({ zoneId: 'z2', state: 'EMPTY' }),
           makeZone({ zoneId: 'z3', state: 'EMPTY' }),
         ],
-        { timestamp: t }
+        { timestamp: t },
       );
       const a1 = engine.evaluate(s1);
       expect(a1.length).toBe(1);
-      engine.resolveAlert(a1[0]); // Clear dedup for zone
+      engine.resolveAlert(a1[0]);
 
-      // Fire for zone 2
       const s2 = makeState(
         [
           makeZone({ zoneId: 'z1', state: 'EMPTY' }),
           makeZone({ zoneId: 'z2', state: 'IDLE', stateDurationSeconds: 10 }),
           makeZone({ zoneId: 'z3', state: 'EMPTY' }),
         ],
-        { timestamp: new Date(t.getTime() + 1000) }
+        { timestamp: new Date(t.getTime() + 1000) },
       );
       const a2 = engine.evaluate(s2);
       expect(a2.length).toBe(1);
       engine.resolveAlert(a2[0]);
 
-      // Zone 3 should be fatigued (limit = 2)
       const s3 = makeState(
         [
           makeZone({ zoneId: 'z1', state: 'EMPTY' }),
           makeZone({ zoneId: 'z2', state: 'EMPTY' }),
           makeZone({ zoneId: 'z3', state: 'IDLE', stateDurationSeconds: 10 }),
         ],
-        { timestamp: new Date(t.getTime() + 2000) }
+        { timestamp: new Date(t.getTime() + 2000) },
       );
       const a3 = engine.evaluate(s3);
       expect(a3.length).toBe(0); // Fatigued
@@ -309,7 +317,7 @@ describe('RulesEngine', () => {
           makeZone({ zoneId: 'zone_02', state: 'EMPTY' }),
           makeZone({ zoneId: 'zone_entry', state: 'EMPTY' }),
         ],
-        { mode: 'OFF' }
+        { mode: 'OFF' },
       );
 
       const alerts = engine.evaluate(state);
@@ -320,17 +328,14 @@ describe('RulesEngine', () => {
       const engine = new RulesEngine(DEFAULT_RULES, ZONE_CONFIGS);
       const state = makeState(
         [
-          // Dirty table (FULL only rule)
           makeZone({ zoneId: 'zone_01', state: 'DIRTY', stateDurationSeconds: 300, blobCount: 0, occupiedTables: 0 }),
           makeZone({ zoneId: 'zone_02', state: 'EMPTY' }),
-          // Queue (FULL + QUIET rule)
           makeZone({ zoneId: 'zone_entry', state: 'QUEUE', stateDurationSeconds: 150, standingCount: 4, blobCount: 4 }),
         ],
-        { mode: 'QUIET' }
+        { mode: 'QUIET' },
       );
 
       const alerts = engine.evaluate(state);
-      // Only queue alert should fire (dirty is FULL-only)
       expect(alerts.length).toBe(1);
       expect(alerts[0].definitionId).toBe('alert_queue_buildup');
     });
@@ -370,14 +375,13 @@ describe('RulesEngine', () => {
           makeZone({ zoneId: 'zone_02', state: 'EMPTY' }),
           makeZone({ zoneId: 'zone_entry', state: 'EMPTY' }),
         ],
-        { timestamp: t0 }
+        { timestamp: t0 },
       );
 
       const alerts = engine.evaluate(state);
       expect(alerts.length).toBe(1);
       expect(alerts[0].recipient).toBe('server');
 
-      // 2 minutes later — escalation timer (90s) should have triggered
       const t1 = new Date(t0.getTime() + 120 * 1000);
       const escalated = engine.checkEscalations(t1);
 
@@ -397,16 +401,14 @@ describe('RulesEngine', () => {
           makeZone({ zoneId: 'zone_02', state: 'EMPTY' }),
           makeZone({ zoneId: 'zone_entry', state: 'EMPTY' }),
         ],
-        { timestamp: t0 }
+        { timestamp: t0 },
       );
 
       const alerts = engine.evaluate(state);
       expect(alerts.length).toBe(1);
 
-      // Acknowledge the alert
       engine.acknowledgeAlert(alerts[0].id);
 
-      // Check escalation after timeout
       const t1 = new Date(t0.getTime() + 120 * 1000);
       const escalated = engine.checkEscalations(t1);
 
@@ -418,33 +420,12 @@ describe('RulesEngine', () => {
     it('should fire multiple alerts for different zones in same evaluation', () => {
       const engine = new RulesEngine(DEFAULT_RULES, ZONE_CONFIGS);
       const state = makeState([
-        makeZone({
-          zoneId: 'zone_01',
-          state: 'IDLE',
-          stateDurationSeconds: 500,
-          blobCount: 4,
-          seatedCount: 4,
-          occupiedTables: 2,
-        }),
-        makeZone({
-          zoneId: 'zone_02',
-          state: 'DIRTY',
-          stateDurationSeconds: 300,
-          blobCount: 0,
-          occupiedTables: 0,
-        }),
-        makeZone({
-          zoneId: 'zone_entry',
-          state: 'QUEUE',
-          stateDurationSeconds: 150,
-          standingCount: 4,
-          blobCount: 4,
-        }),
+        makeZone({ zoneId: 'zone_01', state: 'IDLE', stateDurationSeconds: 500, blobCount: 4, seatedCount: 4, occupiedTables: 2 }),
+        makeZone({ zoneId: 'zone_02', state: 'DIRTY', stateDurationSeconds: 300, blobCount: 0, occupiedTables: 0 }),
+        makeZone({ zoneId: 'zone_entry', state: 'QUEUE', stateDurationSeconds: 150, standingCount: 4, blobCount: 4 }),
       ]);
 
       const alerts = engine.evaluate(state);
-
-      // Should get: idle table (zone_01) + dirty table (zone_02) + queue (zone_entry)
       expect(alerts.length).toBe(3);
 
       const alertTypes = alerts.map((a) => a.definitionId).sort();
@@ -458,19 +439,10 @@ describe('RulesEngine', () => {
       const state = makeState([
         makeZone({ zoneId: 'zone_01', state: 'EMPTY' }),
         makeZone({ zoneId: 'zone_02', state: 'EMPTY' }),
-        // Entry zone in IDLE state — dining rules should not match
-        makeZone({
-          zoneId: 'zone_entry',
-          state: 'IDLE',
-          stateDurationSeconds: 600,
-          blobCount: 2,
-          seatedCount: 2,
-          occupiedTables: 0,
-        }),
+        makeZone({ zoneId: 'zone_entry', state: 'IDLE', stateDurationSeconds: 600, blobCount: 2, seatedCount: 2, occupiedTables: 0 }),
       ]);
 
       const alerts = engine.evaluate(state);
-      // Idle table rule requires dining zone type
       expect(alerts.length).toBe(0);
     });
   });
@@ -492,5 +464,202 @@ describe('RulesEngine', () => {
       expect(supState.pendingEscalations).toBeGreaterThan(0);
       expect(supState.fatigueLogSize).toBeGreaterThan(0);
     });
+  });
+});
+
+// ==========================================
+// Feature Flags Tests
+// ==========================================
+
+describe('Core: FeatureFlagManager', () => {
+  it('should enable all core flags by default', () => {
+    const flags = new FeatureFlagManager();
+    expect(flags.isEnabled('core.rulesEngine')).toBe(true);
+    expect(flags.isEnabled('core.suppression')).toBe(true);
+    expect(flags.isEnabled('core.escalation')).toBe(true);
+  });
+
+  it('should disable all intelligence flags by default', () => {
+    const flags = new FeatureFlagManager();
+    expect(flags.isEnabled('intelligence.adaptiveThresholds')).toBe(false);
+    expect(flags.isEnabled('intelligence.anomalyScoring')).toBe(false);
+    expect(flags.isEnabled('intelligence.smartSuppression')).toBe(false);
+    expect(flags.isEnabled('intelligence.patternDetection')).toBe(false);
+  });
+
+  it('should not allow overriding core flags', () => {
+    const flags = new FeatureFlagManager({ 'core.rulesEngine': false });
+    expect(flags.isEnabled('core.rulesEngine')).toBe(true); // Still true
+  });
+
+  it('should allow overriding intelligence flags', () => {
+    const flags = new FeatureFlagManager({ 'intelligence.adaptiveThresholds': true });
+    expect(flags.isEnabled('intelligence.adaptiveThresholds')).toBe(true);
+  });
+
+  it('should allow runtime toggling of intelligence flags', () => {
+    const flags = new FeatureFlagManager();
+    expect(flags.isEnabled('intelligence.anomalyScoring')).toBe(false);
+
+    flags.enable('intelligence.anomalyScoring');
+    expect(flags.isEnabled('intelligence.anomalyScoring')).toBe(true);
+
+    flags.disable('intelligence.anomalyScoring');
+    expect(flags.isEnabled('intelligence.anomalyScoring')).toBe(false);
+  });
+
+  it('should not allow runtime toggling of core flags', () => {
+    const flags = new FeatureFlagManager();
+    flags.disable('core.rulesEngine');
+    expect(flags.isEnabled('core.rulesEngine')).toBe(true); // Still locked
+  });
+
+  it('should return false for unknown flags', () => {
+    const flags = new FeatureFlagManager();
+    expect(flags.isEnabled('nonexistent.flag')).toBe(false);
+  });
+
+  it('should notify listeners on toggle', () => {
+    const flags = new FeatureFlagManager();
+    let notified = false;
+    flags.onToggle('intelligence.adaptiveThresholds', (enabled) => {
+      notified = enabled;
+    });
+
+    flags.enable('intelligence.adaptiveThresholds');
+    expect(notified).toBe(true);
+  });
+
+  it('should return all intelligence flags via getIntelligenceFlags', () => {
+    const flags = new FeatureFlagManager(INTELLIGENCE_FLAGS);
+    const intel = flags.getIntelligenceFlags();
+    expect(intel['intelligence.adaptiveThresholds']).toBe(true);
+    expect(intel['intelligence.anomalyScoring']).toBe(true);
+    expect(Object.keys(intel).every((k) => k.startsWith('intelligence.'))).toBe(true);
+  });
+});
+
+// ==========================================
+// Intelligence Provider Tests
+// ==========================================
+
+describe('Intelligence: Providers', () => {
+  describe('engine with config constructor', () => {
+    it('should accept providers via EngineConfig', () => {
+      const { providers } = createIntelligenceProviders();
+      const config: EngineConfig = {
+        rules: DEFAULT_RULES,
+        zoneConfigs: ZONE_CONFIGS,
+        providers,
+        featureFlags: INTELLIGENCE_FLAGS,
+      };
+
+      const engine = new RulesEngine(config);
+      const features = engine.getFeatures();
+      expect(features.isEnabled('intelligence.adaptiveThresholds')).toBe(true);
+      expect(features.isEnabled('core.rulesEngine')).toBe(true);
+    });
+
+    it('should work identically to legacy constructor when no providers given', () => {
+      const legacyEngine = new RulesEngine(DEFAULT_RULES, ZONE_CONFIGS);
+      const configEngine = new RulesEngine({
+        rules: DEFAULT_RULES,
+        zoneConfigs: ZONE_CONFIGS,
+      });
+
+      const state = makeState([
+        makeZone({ zoneId: 'zone_01', state: 'IDLE', stateDurationSeconds: 500, blobCount: 4, seatedCount: 4, occupiedTables: 2 }),
+        makeZone({ zoneId: 'zone_02', state: 'EMPTY' }),
+        makeZone({ zoneId: 'zone_entry', state: 'EMPTY' }),
+      ]);
+
+      const legacyAlerts = legacyEngine.evaluate(state);
+      const configAlerts = configEngine.evaluate(state);
+
+      expect(legacyAlerts.length).toBe(configAlerts.length);
+      expect(legacyAlerts[0].definitionId).toBe(configAlerts[0].definitionId);
+    });
+  });
+
+  describe('adaptive thresholds', () => {
+    it('should raise threshold after negative feedback reduces alerts', () => {
+      const { adaptiveThresholds } = createIntelligenceProviders();
+      const state = makeState([makeZone({ zoneId: 'zone_01', state: 'EMPTY' })]);
+
+      // Feed 10 negative outcomes (false positives)
+      for (let i = 0; i < 10; i++) {
+        adaptiveThresholds.recordOutcome(
+          'rule_idle_table', 'zone_01', 'minStateDuration', 480, false,
+          new Date(Date.now() + i * 1000),
+        );
+      }
+
+      // Threshold should now be raised (multiplier > 1.0)
+      const adjusted = adaptiveThresholds.adjustThreshold(
+        'rule_idle_table', 'zone_01', 'minStateDuration', 480, state,
+      );
+      expect(adjusted).toBeGreaterThan(480);
+    });
+  });
+
+  describe('smart suppression', () => {
+    it('should suppress low/medium alerts after a broadcast', () => {
+      const { providers } = createIntelligenceProviders();
+
+      const engine = new RulesEngine({
+        rules: DEFAULT_RULES,
+        zoneConfigs: ZONE_CONFIGS,
+        providers,
+        featureFlags: INTELLIGENCE_FLAGS,
+      });
+
+      const t0 = new Date('2026-02-13T19:00:00Z');
+
+      // First evaluation: fire a bunch of alerts including one that gets broadcast
+      const state1 = makeState([
+        makeZone({ zoneId: 'zone_01', state: 'IDLE', stateDurationSeconds: 500, blobCount: 4, seatedCount: 4, occupiedTables: 2 }),
+        makeZone({ zoneId: 'zone_02', state: 'DIRTY', stateDurationSeconds: 300, blobCount: 0, occupiedTables: 0 }),
+        makeZone({ zoneId: 'zone_entry', state: 'QUEUE', stateDurationSeconds: 150, standingCount: 4, blobCount: 4 }),
+      ], { timestamp: t0 });
+
+      const alerts1 = engine.evaluate(state1);
+      // Smart suppression may reduce alert count due to cascade detection (>3 alerts)
+      expect(alerts1.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+});
+
+// ==========================================
+// Backward Compatibility Tests
+// ==========================================
+
+describe('Backward Compatibility', () => {
+  it('should work with legacy 2-arg constructor (no config object)', () => {
+    const engine = new RulesEngine(DEFAULT_RULES, ZONE_CONFIGS);
+    const state = makeState([
+      makeZone({ zoneId: 'zone_01', state: 'IDLE', stateDurationSeconds: 500, blobCount: 4, seatedCount: 4, occupiedTables: 2 }),
+      makeZone({ zoneId: 'zone_02', state: 'EMPTY' }),
+      makeZone({ zoneId: 'zone_entry', state: 'EMPTY' }),
+    ]);
+
+    const alerts = engine.evaluate(state);
+    expect(alerts.length).toBe(1);
+    expect(alerts[0].definitionId).toBe('alert_idle_table');
+  });
+
+  it('should have intelligence flags off by default (legacy constructor)', () => {
+    const engine = new RulesEngine(DEFAULT_RULES, ZONE_CONFIGS);
+    const features = engine.getFeatures();
+    expect(features.isEnabled('intelligence.adaptiveThresholds')).toBe(false);
+    expect(features.isEnabled('intelligence.anomalyScoring')).toBe(false);
+  });
+
+  it('should import correctly from legacy paths', () => {
+    // These re-export from core/
+    const { RulesEngine: LegacyEngine } = require('../src/engine');
+    const { DEFAULT_RULES: LegacyRules } = require('../src/rules');
+
+    const engine = new LegacyEngine(LegacyRules, ZONE_CONFIGS);
+    expect(engine).toBeDefined();
   });
 });

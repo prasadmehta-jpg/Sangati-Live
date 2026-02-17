@@ -1,13 +1,17 @@
 /**
- * Sangati AI — Rules Engine Demo
+ * Sangati — Rules Engine Demo
  *
+ * Demonstrates both Core-only and Core+Intelligence modes.
  * Simulates 10 minutes of restaurant service during a rush hour.
- * Prints alerts as they would fire in production.
  */
 
-import { RulesEngine } from './engine';
-import { DEFAULT_RULES } from './rules';
-import type { RestaurantState, ZoneSnapshot, ZoneState } from './taxonomy';
+import { RulesEngine } from './core/engine';
+import { DEFAULT_RULES } from './core/rules';
+import type { RestaurantState, ZoneSnapshot } from './core/types';
+import type { EngineConfig } from './core/engine';
+
+// Intelligence (optional Pro modules)
+import { createIntelligenceProviders, INTELLIGENCE_FLAGS } from './intelligence';
 
 // --- Zone Configuration ---
 
@@ -38,7 +42,7 @@ function makeZone(overrides: Partial<ZoneSnapshot> & { zoneId: string }): ZoneSn
 function makeState(
   timestamp: Date,
   zones: ZoneSnapshot[],
-  mode: 'FULL' | 'QUIET' | 'OFF' = 'FULL'
+  mode: 'FULL' | 'QUIET' | 'OFF' = 'FULL',
 ): RestaurantState {
   const zoneMap = new Map<string, ZoneSnapshot>();
   for (const z of zones) {
@@ -60,16 +64,16 @@ function formatTime(date: Date): string {
 function printAlert(alert: { text: string; severity: string; recipient: string; escalationTier: number; createdAt: Date }) {
   const tierLabel = alert.escalationTier > 1 ? ` [TIER ${alert.escalationTier}]` : '';
   const severityColors: Record<string, string> = {
-    low: '\x1b[36m',      // cyan
-    medium: '\x1b[33m',   // yellow
-    high: '\x1b[31m',     // red
-    critical: '\x1b[35m', // magenta
+    low: '\x1b[36m',
+    medium: '\x1b[33m',
+    high: '\x1b[31m',
+    critical: '\x1b[35m',
   };
   const color = severityColors[alert.severity] ?? '\x1b[0m';
   const reset = '\x1b[0m';
 
   console.log(
-    `  ${color}[${alert.severity.toUpperCase()}]${reset} ${formatTime(alert.createdAt)} → ${alert.recipient}${tierLabel}: ${alert.text}`
+    `  ${color}[${alert.severity.toUpperCase()}]${reset} ${formatTime(alert.createdAt)} → ${alert.recipient}${tierLabel}: ${alert.text}`,
   );
 }
 
@@ -164,16 +168,25 @@ const TIMELINE: TimelineEvent[] = [
   },
 ];
 
-// --- Main ---
+// --- Run Simulation ---
 
-function main() {
+function runSimulation(engine: RulesEngine, label: string) {
   console.log('='.repeat(70));
-  console.log('  SANGATI AI — Rules Engine Demo');
+  console.log(`  SANGATI — ${label}`);
   console.log('  Simulating 10 minutes of dinner rush (19:00–19:10)');
   console.log('='.repeat(70));
+
+  // Print active feature flags
+  const features = engine.getFeatures();
+  const intelFlags = features.getIntelligenceFlags();
+  const activeFlags = Object.entries(intelFlags).filter(([, v]) => v).map(([k]) => k.replace('intelligence.', ''));
+  if (activeFlags.length > 0) {
+    console.log(`  Intelligence modules: ${activeFlags.join(', ')}`);
+  } else {
+    console.log('  Mode: Core only (no Intelligence modules)');
+  }
   console.log();
 
-  const engine = new RulesEngine(DEFAULT_RULES, ZONE_CONFIGS);
   const baseTime = new Date('2026-02-13T19:00:00+05:30');
   let totalAlerts = 0;
   let totalEscalations = 0;
@@ -183,18 +196,15 @@ function main() {
 
     console.log(`\n--- ${formatTime(timestamp)} | ${event.description} ---\n`);
 
-    // Build zone snapshots
     const zones = event.zones.map((z) => makeZone(z as Partial<ZoneSnapshot> & { zoneId: string }));
     const state = makeState(timestamp, zones);
 
-    // Evaluate rules
     const newAlerts = engine.evaluate(state);
     for (const alert of newAlerts) {
       printAlert(alert);
       totalAlerts++;
     }
 
-    // Check escalations
     const escalated = engine.checkEscalations(timestamp);
     for (const alert of escalated) {
       printAlert(alert);
@@ -210,9 +220,30 @@ function main() {
   console.log(`  Summary: ${totalAlerts} alerts fired, ${totalEscalations} escalations`);
   const suppState = engine.getSuppressionState();
   console.log(
-    `  Suppression state: ${suppState.activeCooldowns} cooldowns, ${suppState.activeDedupeKeys} dedup keys, ${suppState.pendingEscalations} pending escalations`
+    `  Suppression state: ${suppState.activeCooldowns} cooldowns, ${suppState.activeDedupeKeys} dedup keys, ${suppState.pendingEscalations} pending escalations`,
   );
   console.log('='.repeat(70));
+}
+
+// --- Main ---
+
+function main() {
+  // === Run 1: Core Only (no Intelligence) ===
+  const coreEngine = new RulesEngine(DEFAULT_RULES, ZONE_CONFIGS);
+  runSimulation(coreEngine, 'Rules Engine Demo — CORE ONLY');
+
+  console.log('\n\n');
+
+  // === Run 2: Core + Intelligence ===
+  const { providers } = createIntelligenceProviders();
+  const proConfig: EngineConfig = {
+    rules: DEFAULT_RULES,
+    zoneConfigs: ZONE_CONFIGS,
+    providers,
+    featureFlags: INTELLIGENCE_FLAGS,
+  };
+  const proEngine = new RulesEngine(proConfig);
+  runSimulation(proEngine, 'Rules Engine Demo — CORE + INTELLIGENCE (Pro)');
 }
 
 main();
