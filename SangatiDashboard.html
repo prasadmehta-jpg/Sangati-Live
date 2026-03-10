@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=1024, initial-scale=1">
+  <title>SANGATI — Spice Garden Operations Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            'bg':      '#0E0E0E',
+            'surface': '#161616',
+            'gold':    '#C8A060',
+            'primary': '#E8E4DC',
+            'muted':   '#666666',
+            'alert':   '#C0392B',
+            'success': '#1E8449',
+            'bdr':     '#242424',
+          },
+          fontFamily: {
+            sans: ['-apple-system','BlinkMacSystemFont','Segoe UI','system-ui','sans-serif'],
+          },
+        }
+      }
+    }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; min-height: 100vh; background: #0E0E0E; }
+    body { color: #E8E4DC; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; overflow-x: hidden; }
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: #161616; }
+    ::-webkit-scrollbar-thumb { background: #242424; border-radius: 2px; }
+    select option { background: #161616; color: #E8E4DC; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+// ── COLOURS (inline-style constants) ─────────────────────────────────────────
+const C = {
+  bg:      '#0E0E0E',
+  surface: '#161616',
+  gold:    '#C8A060',
+  primary: '#E8E4DC',
+  muted:   '#666666',
+  alert:   '#C0392B',
+  success: '#1E8449',
+  bdr:     '#242424',
+};
+
+// ── SAMPLE DATA ───────────────────────────────────────────────────────────────
+const RESTAURANT = 'Spice Garden — Andheri West';
+
+const getToday = () =>
+  new Date().toLocaleDateString('en-IN', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  });
+
+const ORDER = {
+  total: 18400,
+  breakdown: [
+    { label: 'Chicken',      amount: 6200 },
+    { label: 'Vegetables',   amount: 4100 },
+    { label: 'Rice / Dal',   amount: 3800 },
+    { label: 'Dairy',        amount: 2400 },
+    { label: 'Oils / Spices',amount: 1900 },
+  ],
+  tag: '28% above last Saturday — IPL + payday = high delivery demand tonight',
+};
+
+const PREP = {
+  covers: 155,
+  change: '+35% vs last Saturday',
+  tag: 'Peak Saturday. Delivery orders expected +35% due to IPL match tonight.',
+};
+
+const STAFF = {
+  total: 12,
+  breakdown: [
+    { role: 'Kitchen',         count: 5 },
+    { role: 'Floor',           count: 4 },
+    { role: 'Delivery Coord.', count: 2 },
+    { role: 'Support',         count: 1 },
+  ],
+  tag: 'IPL match shifts demand to delivery. Keep floor lean, delivery heavy.',
+};
+
+const SAVINGS = {
+  wastePrevented:        8400,
+  overOrderingPrevented: 6100,
+  total:                14500,
+  fee:                   4999,
+  net:                   9501,
+};
+
+const HISTORY = [
+  { date: 'Mar 8', sangati: 'Prep 120 covers',  chosen: '140 covers', actual: '138 covers', acc: 98 },
+  { date: 'Mar 7', sangati: 'Staff 10 people',  chosen: '12 people',  actual: '11 people',  acc: 91 },
+  { date: 'Mar 6', sangati: 'Order ₹16,200',    chosen: '₹14,000',    actual: '₹15,800',    acc: 88 },
+  { date: 'Mar 5', sangati: 'Prep 90 covers',   chosen: '90 covers',  actual: '92 covers',  acc: 97 },
+  { date: 'Mar 4', sangati: 'Staff 8 people',   chosen: '9 people',   actual: '8 people',   acc: 88 },
+];
+
+const ALERTS = [
+  {
+    title:  'IPL match tonight — delivery orders surge incoming',
+    detail: 'Delivery orders typically surge 35% from 7pm. Reduce dine-in prep by 15%. Add one delivery coordinator from 6:30pm.',
+    impact: '₹4,200 in wasted dine-in prep if ignored',
+    action: 'Reduce dine-in prep 15% · Roster delivery coord from 6:30pm',
+  },
+];
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+const fmt  = n  => `₹${Number(n).toLocaleString('en-IN')}`;
+const accColor = a => a >= 85 ? C.success : a >= 70 ? '#C9A227' : C.alert;
+const accBg    = a => a >= 85 ? 'rgba(30,132,73,0.15)' : a >= 70 ? 'rgba(201,162,39,0.15)' : 'rgba(192,57,43,0.15)';
+
+// ── OVERRIDE PANEL ────────────────────────────────────────────────────────────
+const REASONS = [
+  'Select reason…',
+  'Supplier issue / delay',
+  'Event cancelled or changed',
+  'Weather worse than forecast',
+  'Unexpected walk-in surge',
+  'Staff shortage',
+  'Owner decision',
+  'Other',
+];
+
+function OverridePanel({ label, unit, onClose, onSave }) {
+  const [val, setVal]     = useState('');
+  const [reason, setReason] = useState('');
+  const inputRef = useRef(null);
+
+  useEffect(() => { inputRef.current && inputRef.current.focus(); }, []);
+
+  const save = () => {
+    if (!val) return;
+    onSave(val, reason);
+    onClose();
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 200,
+        background: 'rgba(0,0,0,0.75)',
+        display: 'flex', justifyContent: 'flex-end',
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: 380, background: C.surface,
+          borderLeft: `1px solid ${C.bdr}`,
+          padding: '2rem',
+          display: 'flex', flexDirection: 'column', gap: '1.25rem',
+          animation: 'slideIn 0.25s ease',
+        }}
+      >
+        <style>{`@keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}`}</style>
+
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ color: C.gold, fontSize: '0.72rem', letterSpacing: '0.12em', fontWeight: 700, marginBottom: 4 }}>
+              OVERRIDE
+            </div>
+            <div style={{ color: C.primary, fontSize: '1.1rem', fontWeight: 700 }}>{label}</div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'none', border: 'none', color: C.muted,
+              fontSize: '1.4rem', cursor: 'pointer', lineHeight: 1,
+              padding: '0.25rem',
+            }}
+          >×</button>
+        </div>
+
+        <div style={{ height: 1, background: C.bdr }} />
+
+        <p style={{ color: C.muted, fontSize: '0.87rem', lineHeight: 1.5 }}>
+          What did you actually {label.split(' ')[0].toLowerCase()}? Your input helps SANGATI learn your restaurant's specific patterns.
+        </p>
+
+        {/* Number input */}
+        <div>
+          <label style={{ color: C.muted, fontSize: '0.73rem', letterSpacing: '0.1em', fontWeight: 600, display: 'block', marginBottom: 8 }}>
+            ACTUAL {unit}
+          </label>
+          <input
+            ref={inputRef}
+            type="number"
+            value={val}
+            onChange={e => setVal(e.target.value)}
+            placeholder="Enter value…"
+            style={{
+              width: '100%', padding: '0.875rem 1rem',
+              background: C.bg, border: `1px solid ${C.bdr}`, borderRadius: 8,
+              color: C.primary, fontSize: '1.3rem', fontWeight: 700,
+              outline: 'none', transition: 'border-color 0.2s',
+            }}
+            onFocus={e => e.target.style.borderColor = C.gold}
+            onBlur={e  => e.target.style.borderColor = C.bdr}
+          />
+        </div>
+
+        {/* Reason select */}
+        <div>
+          <label style={{ color: C.muted, fontSize: '0.73rem', letterSpacing: '0.1em', fontWeight: 600, display: 'block', marginBottom: 8 }}>
+            REASON
+          </label>
+          <select
+            value={reason}
+            onChange={e => setReason(e.target.value)}
+            style={{
+              width: '100%', padding: '0.875rem 1rem',
+              background: C.bg, border: `1px solid ${C.bdr}`, borderRadius: 8,
+              color: reason ? C.primary : C.muted, fontSize: '0.93rem',
+              outline: 'none', cursor: 'pointer',
+            }}
+          >
+            {REASONS.map(r => <option key={r} value={r === 'Select reason…' ? '' : r}>{r}</option>)}
+          </select>
+        </div>
+
+        {/* Save */}
+        <button
+          onClick={save}
+          disabled={!val}
+          style={{
+            marginTop: 'auto',
+            padding: '0.9rem',
+            background: val ? C.gold : '#2a2a2a',
+            border: 'none', borderRadius: 8,
+            color: val ? C.bg : C.muted,
+            fontWeight: 700, fontSize: '0.9rem',
+            letterSpacing: '0.07em', cursor: val ? 'pointer' : 'default',
+            transition: 'all 0.2s',
+          }}
+        >
+          SAVE MY OVERRIDE
+        </button>
+
+        <p style={{ color: '#444', fontSize: '0.76rem', textAlign: 'center', lineHeight: 1.5 }}>
+          Your override helps SANGATI learn.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ── SIGNAL CARD ───────────────────────────────────────────────────────────────
+function SignalCard({ title, mainLine, subLine, breakdown, tag, onOverride }) {
+  const [hover, setHover] = useState(false);
+
+  return (
+    <div style={{
+      flex: 1, background: C.surface, border: `1px solid ${C.bdr}`,
+      borderRadius: 12, padding: '1.5rem',
+      display: 'flex', flexDirection: 'column', gap: '0.875rem',
+    }}>
+      {/* Top row */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ color: C.muted, fontSize: '0.72rem', letterSpacing: '0.12em', fontWeight: 600 }}>
+          {title}
+        </span>
+        <button
+          onClick={onOverride}
+          onMouseEnter={() => setHover(true)}
+          onMouseLeave={() => setHover(false)}
+          style={{
+            padding: '0.3rem 0.75rem',
+            background: 'transparent',
+            border: `1px solid ${hover ? C.gold : C.bdr}`,
+            borderRadius: 5, color: hover ? C.gold : C.muted,
+            fontSize: '0.72rem', letterSpacing: '0.07em', fontWeight: 700,
+            cursor: 'pointer', transition: 'all 0.2s',
+          }}
+        >
+          OVERRIDE
+        </button>
+      </div>
+
+      {/* Main number */}
+      <div style={{ color: C.gold, fontSize: '1.75rem', fontWeight: 800, lineHeight: 1.2, letterSpacing: '-0.01em' }}>
+        {mainLine}
+      </div>
+
+      {/* Sub line */}
+      {subLine && (
+        <div style={{ color: C.primary, fontSize: '0.88rem', opacity: 0.8 }}>{subLine}</div>
+      )}
+
+      {/* Breakdown chips */}
+      {breakdown && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+          {breakdown.map((b, i) => (
+            <span
+              key={i}
+              style={{
+                background: C.bg, border: `1px solid ${C.bdr}`, borderRadius: 5,
+                padding: '0.22rem 0.55rem', fontSize: '0.78rem',
+              }}
+            >
+              <span style={{ color: C.muted }}>{b.label} </span>
+              <span style={{ color: C.gold, fontWeight: 700 }}>
+                {typeof b.amount !== 'undefined' ? fmt(b.amount) : b.count}
+              </span>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Tag */}
+      {tag && (
+        <div style={{
+          marginTop: 'auto',
+          background: 'rgba(200,160,96,0.07)', border: '1px solid rgba(200,160,96,0.18)',
+          borderRadius: 6, padding: '0.5rem 0.7rem',
+          fontSize: '0.79rem', color: C.gold, lineHeight: 1.45,
+        }}>
+          {tag}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── OWNER MODE ────────────────────────────────────────────────────────────────
+function OwnerMode({ onSwitch }) {
+  const [panel, setPanel] = useState(null);
+  const [saved, setSaved] = useState({});
+
+  const handleSave = (type, val, reason) => {
+    setSaved(s => ({ ...s, [type]: { val, reason } }));
+  };
+
+  const panelConfig = {
+    order: { label: 'Order Amount', unit: 'AMOUNT (₹)' },
+    prep:  { label: 'Prep Covers',  unit: 'NUMBER OF COVERS' },
+    staff: { label: 'Staff Rostered', unit: 'NUMBER OF PEOPLE' },
+  };
+
+  return (
+    <div style={{ minHeight: '100vh', background: C.bg, padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+
+      {/* ── TOP BAR ─────────────────────────────────────────────────────────── */}
+      <header style={{
+        background: C.surface, border: `1px solid ${C.bdr}`, borderRadius: 10,
+        padding: '0.75rem 1.25rem',
+        display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap',
+      }}>
+        {/* Logo + name */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
+          <div>
+            <div style={{ color: C.gold, fontSize: '0.85rem', fontWeight: 800, letterSpacing: '0.15em' }}>SANGATI</div>
+            <div style={{ color: C.muted, fontSize: '0.72rem', marginTop: 1 }}>{RESTAURANT}</div>
+          </div>
+        </div>
+
+        <div style={{ width: 1, height: 32, background: C.bdr }} />
+
+        {/* Date */}
+        <div>
+          <div style={{ color: C.muted, fontSize: '0.7rem', letterSpacing: '0.08em' }}>TODAY</div>
+          <div style={{ color: C.primary, fontSize: '0.87rem', fontWeight: 600, marginTop: 1 }}>{getToday()}</div>
+        </div>
+
+        <div style={{ width: 1, height: 32, background: C.bdr }} />
+
+        {/* Weather */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span style={{ fontSize: '1.4rem' }}>🌧️</span>
+          <div>
+            <div style={{ color: C.primary, fontWeight: 700, fontSize: '0.95rem' }}>29°C</div>
+            <div style={{ color: C.muted, fontSize: '0.73rem' }}>Light rain forecast this evening</div>
+          </div>
+        </div>
+
+        <div style={{ width: 1, height: 32, background: C.bdr }} />
+
+        {/* Context */}
+        <div style={{ color: C.primary, fontSize: '0.85rem' }}>
+          Saturday + payday weekend + light rain forecast
+        </div>
+
+        {/* Event badge */}
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <span style={{
+            background: 'rgba(192,57,43,0.12)', border: `1px solid ${C.alert}`,
+            borderRadius: 6, padding: '0.3rem 0.75rem',
+            color: C.alert, fontSize: '0.78rem', fontWeight: 700, letterSpacing: '0.06em',
+          }}>
+            🏏 IPL TONIGHT — IND vs AUS
+          </span>
+          <button
+            onClick={onSwitch}
+            style={{
+              padding: '0.45rem 1rem', background: C.gold, border: 'none',
+              borderRadius: 7, color: C.bg, fontWeight: 700, fontSize: '0.78rem',
+              letterSpacing: '0.07em', cursor: 'pointer',
+            }}
+          >
+            MANAGER VIEW
+          </button>
+        </div>
+      </header>
+
+      {/* ── MAIN BODY ───────────────────────────────────────────────────────── */}
+      <div style={{ display: 'flex', gap: '0.875rem', flex: 1 }}>
+
+        {/* LEFT COLUMN — cards + history */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.875rem', minWidth: 0 }}>
+
+          {/* ── SECTION 2: Three Signal Cards ─────────────────────────────── */}
+          <div style={{ display: 'flex', gap: '0.875rem' }}>
+            <SignalCard
+              title="ORDER TODAY"
+              mainLine={`Order ${fmt(ORDER.total)} of stock`}
+              breakdown={ORDER.breakdown.map(b => ({ label: b.label, amount: b.amount }))}
+              tag={ORDER.tag}
+              onOverride={() => setPanel('order')}
+            />
+            <SignalCard
+              title="PREP TONIGHT"
+              mainLine={`Prep for ${PREP.covers} covers`}
+              subLine={PREP.change}
+              tag={PREP.tag}
+              onOverride={() => setPanel('prep')}
+            />
+            <SignalCard
+              title="STAFF TOMORROW"
+              mainLine={`Roster ${STAFF.total} people`}
+              breakdown={STAFF.breakdown.map(b => ({ label: b.role, count: b.count }))}
+              tag={STAFF.tag}
+              onOverride={() => setPanel('staff')}
+            />
+          </div>
+
+          {/* ── SECTION 4: Override History ───────────────────────────────── */}
+          <div style={{
+            background: C.surface, border: `1px solid ${C.bdr}`, borderRadius: 10,
+            padding: '1.25rem', flex: 1,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.75rem', marginBottom: '1rem' }}>
+              <span style={{ color: C.muted, fontSize: '0.72rem', letterSpacing: '0.1em', fontWeight: 600 }}>
+                OVERRIDE HISTORY
+              </span>
+              <span style={{ color: '#3a3a3a', fontSize: '0.72rem' }}>
+                Every row makes SANGATI more accurate for your restaurant.
+              </span>
+            </div>
+
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.83rem' }}>
+              <thead>
+                <tr>
+                  {['Date', 'SANGATI Said', 'You Chose', 'What Actually Happened', 'Accuracy'].map(h => (
+                    <th
+                      key={h}
+                      style={{
+                        color: C.muted, fontWeight: 600, fontSize: '0.7rem', letterSpacing: '0.08em',
+                        textAlign: 'left', paddingBottom: '0.6rem',
+                        borderBottom: `1px solid ${C.bdr}`, paddingRight: '1.25rem',
+                      }}
+                    >{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {HISTORY.map((row, i) => (
+                  <tr key={i}>
+                    <td style={{ padding: '0.6rem 1.25rem 0.6rem 0', color: C.muted, borderBottom: `1px solid #1c1c1c` }}>{row.date}</td>
+                    <td style={{ padding: '0.6rem 1.25rem 0.6rem 0', color: '#555',   borderBottom: `1px solid #1c1c1c` }}>{row.sangati}</td>
+                    <td style={{ padding: '0.6rem 1.25rem 0.6rem 0', color: C.primary,borderBottom: `1px solid #1c1c1c`, fontWeight: 600 }}>{row.chosen}</td>
+                    <td style={{ padding: '0.6rem 1.25rem 0.6rem 0', color: C.primary,borderBottom: `1px solid #1c1c1c` }}>{row.actual}</td>
+                    <td style={{ padding: '0.6rem 0           0.6rem 0', borderBottom: `1px solid #1c1c1c` }}>
+                      <span style={{
+                        background: accBg(row.acc), color: accColor(row.acc),
+                        border: `1px solid ${accColor(row.acc)}55`,
+                        borderRadius: 5, padding: '0.2rem 0.55rem',
+                        fontSize: '0.8rem', fontWeight: 700,
+                      }}>
+                        {row.acc}%
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* ── SECTION 3: Savings Panel ─────────────────────────────────────── */}
+        <div style={{
+          width: 232, background: C.surface, border: `1px solid ${C.bdr}`,
+          borderRadius: 10, padding: '1.25rem',
+          display: 'flex', flexDirection: 'column', gap: '0.875rem',
+          flexShrink: 0,
+        }}>
+          <div style={{ color: C.muted, fontSize: '0.72rem', letterSpacing: '0.1em', fontWeight: 600 }}>
+            SAVINGS THIS MONTH
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <SavingsRow label="Waste prevented"         value={fmt(SAVINGS.wastePrevented)} />
+            <SavingsRow label="Over-ordering prevented" value={fmt(SAVINGS.overOrderingPrevented)} />
+          </div>
+
+          <div style={{ height: 1, background: C.bdr }} />
+
+          <div>
+            <div style={{ color: C.muted, fontSize: '0.73rem', marginBottom: 3 }}>Total saved</div>
+            <div style={{ color: C.primary, fontWeight: 700, fontSize: '1.2rem' }}>{fmt(SAVINGS.total)}</div>
+          </div>
+
+          <div>
+            <div style={{ color: C.muted, fontSize: '0.73rem', marginBottom: 3 }}>SANGATI fee</div>
+            <div style={{ color: C.muted, fontSize: '1rem', fontWeight: 600 }}>− {fmt(SAVINGS.fee)}</div>
+          </div>
+
+          <div style={{ height: 1, background: C.bdr }} />
+
+          {/* Net number — hero of this panel */}
+          <div style={{
+            background: 'rgba(30,132,73,0.09)', border: '1px solid rgba(30,132,73,0.28)',
+            borderRadius: 9, padding: '1rem',
+          }}>
+            <div style={{ color: C.muted, fontSize: '0.7rem', letterSpacing: '0.08em', marginBottom: 6 }}>
+              NET IN YOUR POCKET
+            </div>
+            <div style={{ color: C.success, fontWeight: 800, fontSize: '2rem', letterSpacing: '-0.01em' }}>
+              {fmt(SAVINGS.net)}
+            </div>
+          </div>
+
+          <div style={{ marginTop: 'auto' }}>
+            <div style={{
+              background: 'rgba(200,160,96,0.05)', border: `1px solid ${C.bdr}`,
+              borderRadius: 6, padding: '0.625rem',
+            }}>
+              <div style={{ color: '#444', fontSize: '0.72rem', lineHeight: 1.5 }}>
+                ✓ Verified by your own supplier invoices and POS data
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── OVERRIDE PANELS ─────────────────────────────────────────────────── */}
+      {panel && (
+        <OverridePanel
+          label={panelConfig[panel].label}
+          unit={panelConfig[panel].unit}
+          onClose={() => setPanel(null)}
+          onSave={(v, r) => handleSave(panel, v, r)}
+        />
+      )}
+    </div>
+  );
+}
+
+function SavingsRow({ label, value }) {
+  return (
+    <div>
+      <div style={{ color: C.muted, fontSize: '0.73rem', marginBottom: 2 }}>{label}</div>
+      <div style={{ color: C.success, fontWeight: 700, fontSize: '1.05rem' }}>{value}</div>
+    </div>
+  );
+}
+
+// ── MANAGER MODE ──────────────────────────────────────────────────────────────
+function ManagerMode({ onSwitch }) {
+  const [panel, setPanel] = useState(false);
+  const [which, setWhich] = useState(null);
+
+  const openOverride = (type) => { setWhich(type); setPanel(true); };
+
+  const numbers = [
+    {
+      key:   'order',
+      label: 'ORDER TODAY',
+      value: '₹18,400',
+      sub:   'of stock to order',
+      detail:'Chicken · Veg · Rice · Dairy · Oils',
+    },
+    {
+      key:   'prep',
+      label: 'PREP TONIGHT',
+      value: '155',
+      sub:   'covers',
+      detail:'+35% vs last Saturday',
+    },
+    {
+      key:   'staff',
+      label: 'STAFF TOMORROW',
+      value: '12',
+      sub:   'people to roster',
+      detail:'Kitchen 5 · Floor 4 · Delivery 2 · Support 1',
+    },
+  ];
+
+  const panelConfig = {
+    order: { label: 'Order Amount',   unit: 'AMOUNT (₹)' },
+    prep:  { label: 'Prep Covers',    unit: 'NUMBER OF COVERS' },
+    staff: { label: 'Staff Rostered', unit: 'NUMBER OF PEOPLE' },
+  };
+
+  return (
+    <div style={{
+      minHeight: '100vh', background: C.bg,
+      display: 'flex', flexDirection: 'column',
+      padding: '1.5rem',
+    }}>
+
+      {/* Top strip */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
+        <div>
+          <div style={{ color: C.gold, fontSize: '0.8rem', letterSpacing: '0.15em', fontWeight: 800 }}>SANGATI</div>
+          <div style={{ color: C.muted, fontSize: '0.78rem', marginTop: 2 }}>{RESTAURANT}</div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ color: C.muted, fontSize: '0.78rem' }}>{getToday()}</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.4rem', marginTop: 4 }}>
+            <span style={{ fontSize: '1rem' }}>🌧️</span>
+            <span style={{ color: C.primary, fontSize: '0.83rem' }}>29°C · Light rain this evening</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Event badge */}
+      <div style={{ marginBottom: '1.5rem' }}>
+        <span style={{
+          background: 'rgba(192,57,43,0.12)', border: `1px solid ${C.alert}`,
+          borderRadius: 7, padding: '0.4rem 0.9rem',
+          color: C.alert, fontSize: '0.83rem', fontWeight: 700, letterSpacing: '0.06em',
+        }}>
+          🏏 IPL TONIGHT — INDIA vs AUSTRALIA
+        </span>
+      </div>
+
+      {/* ── THREE GIANT NUMBERS ───────────────────────────────────────────── */}
+      <div style={{ display: 'flex', gap: '1.25rem', flex: 1 }}>
+        {numbers.map((n, i) => (
+          <div
+            key={i}
+            style={{
+              flex: 1, background: C.surface, border: `1px solid ${C.bdr}`,
+              borderRadius: 16, padding: '2.5rem 2rem',
+              display: 'flex', flexDirection: 'column', justifyContent: 'center',
+              cursor: 'pointer',
+            }}
+            onClick={() => openOverride(n.key)}
+            title="Tap to override"
+          >
+            <div style={{
+              color: C.muted, fontSize: '0.78rem', letterSpacing: '0.12em',
+              fontWeight: 600, marginBottom: '1.25rem', textTransform: 'uppercase',
+            }}>
+              {n.label}
+            </div>
+            <div style={{
+              color: C.gold, fontSize: '5rem', fontWeight: 800,
+              lineHeight: 1, marginBottom: '0.75rem',
+              letterSpacing: '-0.02em',
+            }}>
+              {n.value}
+            </div>
+            <div style={{ color: C.primary, fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+              {n.sub}
+            </div>
+            <div style={{ color: C.muted, fontSize: '0.83rem', marginTop: '0.5rem' }}>
+              {n.detail}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── ALERT SECTION ─────────────────────────────────────────────────── */}
+      <div style={{ marginTop: '1.5rem' }}>
+        {ALERTS.length > 0 ? (
+          <div style={{
+            background: 'rgba(192,57,43,0.09)', border: `1px solid rgba(192,57,43,0.38)`,
+            borderRadius: 12, padding: '1.25rem 1.5rem',
+          }}>
+            <div style={{
+              color: C.alert, fontSize: '0.75rem', fontWeight: 700,
+              letterSpacing: '0.1em', marginBottom: '0.75rem',
+            }}>
+              ⚠ {ALERTS.length} ACTIVE ALERT
+            </div>
+            {ALERTS.map((a, i) => (
+              <div key={i}>
+                <div style={{ color: C.primary, fontSize: '1rem', fontWeight: 700, marginBottom: '0.35rem' }}>
+                  {a.title}
+                </div>
+                <div style={{ color: C.primary, fontSize: '0.88rem', opacity: 0.75, lineHeight: 1.55, marginBottom: '0.625rem' }}>
+                  {a.detail}
+                </div>
+                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                  <span style={{
+                    background: 'rgba(192,57,43,0.14)', color: C.alert, borderRadius: 5,
+                    padding: '0.25rem 0.625rem', fontSize: '0.8rem', fontWeight: 600,
+                  }}>
+                    Impact: {a.impact}
+                  </span>
+                  <span style={{
+                    background: 'rgba(200,160,96,0.1)', color: C.gold, borderRadius: 5,
+                    padding: '0.25rem 0.625rem', fontSize: '0.8rem', fontWeight: 600,
+                  }}>
+                    Action: {a.action}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{
+            background: 'rgba(30,132,73,0.07)', border: '1px solid rgba(30,132,73,0.22)',
+            borderRadius: 12, padding: '1rem 1.5rem',
+            color: C.success, fontSize: '0.97rem', fontWeight: 600,
+          }}>
+            ✓ No alerts today. Operations look normal.
+          </div>
+        )}
+      </div>
+
+      {/* ── BOTTOM BUTTONS ────────────────────────────────────────────────── */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.25rem' }}>
+        <button
+          onClick={onSwitch}
+          style={{
+            padding: '0.55rem 1.1rem', background: 'transparent',
+            border: `1px solid ${C.bdr}`, borderRadius: 7,
+            color: C.muted, fontSize: '0.8rem', fontWeight: 600,
+            letterSpacing: '0.05em', cursor: 'pointer', transition: 'all 0.2s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.color = C.gold; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = C.bdr;  e.currentTarget.style.color = C.muted; }}
+        >
+          ← OWNER VIEW
+        </button>
+
+        <div style={{ color: C.muted, fontSize: '0.76rem' }}>
+          Tap any number to override it
+        </div>
+
+        <button
+          onClick={() => openOverride('order')}
+          style={{
+            padding: '0.55rem 1.1rem', background: 'transparent',
+            border: `1px solid ${C.bdr}`, borderRadius: 7,
+            color: C.muted, fontSize: '0.8rem', fontWeight: 600,
+            letterSpacing: '0.05em', cursor: 'pointer', transition: 'all 0.2s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.color = C.gold; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = C.bdr;  e.currentTarget.style.color = C.muted; }}
+        >
+          OVERRIDE A NUMBER →
+        </button>
+      </div>
+
+      {/* Override panel */}
+      {panel && which && (
+        <OverridePanel
+          label={panelConfig[which].label}
+          unit={panelConfig[which].unit}
+          onClose={() => { setPanel(false); setWhich(null); }}
+          onSave={() => {}}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── APP ───────────────────────────────────────────────────────────────────────
+function App() {
+  const [mode, setMode] = useState('owner'); // 'owner' | 'manager'
+
+  return mode === 'owner'
+    ? <OwnerMode   onSwitch={() => setMode('manager')} />
+    : <ManagerMode onSwitch={() => setMode('owner')}   />;
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
