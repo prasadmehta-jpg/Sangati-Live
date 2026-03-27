@@ -1,0 +1,48 @@
+%% Sangati AI — Manager Rush Dashboard Flow
+%% Mermaid sequence diagram: What the manager sees and does during rush hour
+
+sequenceDiagram
+    participant V as Vision Pipeline
+    participant S as State Layer
+    participant R as Rules Engine
+    participant D as Manager Dashboard
+    participant M as Manager
+
+    Note over V,M: Rush Hour Begins (19:00)
+
+    V->>S: Zone states updated (every 2s)
+    S->>R: State transitions emitted
+
+    R->>D: 3 active alerts pushed
+    D->>M: Dashboard shows floor map<br/>Zones color-coded:<br/>🟢 EMPTY 🟡 OCCUPIED 🔴 IDLE/DIRTY
+
+    M->>D: Opens dashboard
+    D-->>M: Shows:<br/>• Zone A: 🟡 3/5 tables<br/>• Zone B: 🔴 IDLE 9 min<br/>• Zone C: 🟡 2/5 tables<br/>• Entry: 🔴 QUEUE 3 min
+
+    Note over M,D: Manager sees Zone B idle alert
+
+    alt Manager taps alert
+        M->>D: Taps "Zone B idle" alert
+        D->>R: ACK sent
+        R-->>D: Escalation timer cancelled
+        D-->>M: Alert badge → "Acknowledged"
+    else Manager taps Zone B → Mute
+        M->>D: Long-press Zone B → "Mute 15 min"
+        D->>R: Zone mute applied
+        R-->>D: Zone B alerts suppressed 15 min
+        D-->>M: Zone B shown as muted (grey)
+    else Manager switches to QUIET mode
+        M->>D: Taps mode toggle → QUIET
+        D->>M: "Enter PIN"
+        M->>D: Enters 4-digit PIN
+        D->>R: Mode = QUIET
+        R-->>D: Only CRITICAL alerts active
+        D-->>M: Mode badge: "QUIET"
+    end
+
+    Note over V,M: Rush continues...
+
+    V->>S: Zone B → DIRTY (guests left)
+    S->>R: DIRTY transition event
+    R->>D: "Zone B dirty 4 min" (if not muted)
+    D->>M: New alert appears on floor map

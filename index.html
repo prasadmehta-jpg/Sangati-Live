@@ -42,12 +42,12 @@
         <div className="mt-12"><h2 className="text-3xl serif text-white mb-6">AI Wins Today</h2>
         {wins.map((w,i)=><div key={i} className="glass p-4 rounded-lg mb-4 border-l-4 border-green-500"><p>{w.e}</p><p className="text-xs text-slate-400">{w.t} • <span className="text-green-400 font-bold">+{w.v}</span></p></div>)}</div></div>};
 
-        const App=()=>{const [in,setIn]=useState(false),[login,setLogin]=useState(false);return in?<Dashboard out={()=>setIn(false)}/>:
+        const App=()=>{const [loggedIn,setLoggedIn]=useState(false),[login,setLogin]=useState(false);return loggedIn?<Dashboard out={()=>setLoggedIn(false)}/>:
         <div className="min-h-screen flex flex-col items-center justify-center text-center px-6 bg-gradient-to-br from-[#050810] to-[#0a0f1e]">
         <h1 className="text-6xl md:text-8xl serif text-white mb-8">Sangati</h1>
         <p className="text-2xl text-slate-400 mb-12">One AI. Total Harmony.</p>
         <button onClick={()=>setLogin(true)} className="px-16 py-6 bg-[#FF7F50] hover:bg-[#ff6b36] text-white text-2xl rounded-xl uppercase tracking-widest font-bold">Admin Login</button>
-        <Login open={login} close={()=>setLogin(false)} login={()=>setIn(true)}/></div>};
+        <Login open={login} close={()=>setLogin(false)} login={()=>setLoggedIn(true)}/></div>};
         ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
     </script>
 </body>

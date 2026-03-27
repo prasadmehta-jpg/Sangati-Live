@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sangati.ai/schemas/alert-taxonomy.json",
+  "title": "Sangati Alert Taxonomy",
+  "description": "JSON Schema for Sangati AI alert definitions. Each alert type is a reusable template that the rules engine instantiates when conditions are met.",
+  "type": "object",
+  "required": ["version", "alerts"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Schema version (semver)",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "alerts": {
+      "type": "array",
+      "description": "Array of alert definitions",
+      "items": {
+        "$ref": "#/$defs/AlertDefinition"
+      },
+      "minItems": 1
+    }
+  },
+  "$defs": {
+    "AlertDefinition": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "description",
+        "category",
+        "severity",
+        "trigger",
+        "recipient",
+        "escalate_after_seconds",
+        "escalate_to",
+        "cooldown_seconds",
+        "dedupe_key"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique alert type identifier",
+          "pattern": "^alert_[a-z_]+$"
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable alert name",
+          "minLength": 3,
+          "maxLength": 60
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed description of what this alert means and when it fires",
+          "minLength": 10
+        },
+        "category": {
+          "type": "string",
+          "description": "Alert category for grouping",
+          "enum": ["floor", "kitchen", "manager", "system"]
+        },
+        "severity": {
+          "type": "string",
+          "description": "Alert severity level",
+          "enum": ["low", "medium", "high", "critical"]
+        },
+        "trigger": {
+          "type": "string",
+          "description": "Human-readable description of the trigger condition"
+        },
+        "recipient": {
+          "type": "string",
+          "description": "Primary recipient role",
+          "enum": ["server", "captain", "manager", "kitchen", "all"]
+        },
+        "escalate_after_seconds": {
+          "type": ["integer", "null"],
+          "description": "Seconds before escalation if not acknowledged. Null = no escalation.",
+          "minimum": 30
+        },
+        "escalate_to": {
+          "type": ["string", "null"],
+          "description": "Role to escalate to. Null = no escalation.",
+          "enum": ["server", "captain", "manager", "kitchen", "all", null]
+        },
+        "cooldown_seconds": {
+          "type": "integer",
+          "description": "Minimum seconds between re-firing the same alert for the same zone",
+          "minimum": 0
+        },
+        "dedupe_key": {
+          "type": "string",
+          "description": "Template for deduplication key. Supports {zone_id} placeholder.",
+          "pattern": "^\\{zone_id\\}:"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
